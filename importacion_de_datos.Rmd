@@ -1,0 +1,323 @@
+---
+title: "Importación de datos"
+output:
+  html_document:
+    theme:  journal
+    highlight: zenburn
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_section: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Introducción
+
+En este capítulo aprenderemos a leer en R archivos rectangulares de texto plano para poder cargar nuestros propios datos y no solamente trabajar con los datos que traen los paquetes.
+
+- Desafíos de este capítulo: pasar de set de datos "perfectos" a set de datos reales.
+
+# Funciones para leer datos
+
+El libro se enfoca en las funciones del paquete **readr** las cuales la mayoría se centran en transformar archivos de texto plano en *data frames*:
+
+- Para archivos separados por algo:
+  - `read_csv()` lee archivos delimitados por coma
+  - `read_csv2()` lee archivos separados por punto y coma
+  - `read_tsv()` lee archivos separados por tabuladores
+  - `read_delim()` lee archivos separados por algún delimitador
+- Para archivos de ancho fijo
+  - `read_fwf()` se puede especificar los campos por su ancho (`fwf_widths()`) o por su ubicación (`fwf_positions()`)
+  - `read_table()`para archivos en donde las columnas se encuentran separadas por espacios
+  
+-  Archivos de registro estilo Apache
+    - `read_log()`
+
+Como son funciones del *tidyverse* todas tienen una sintaxis similar, así que dominando `read_csv()` se puede llegar a comprender todas las demás.
+
+# Dominando `read_csv()`
+
+El argumento más importante de la función `read_csv()`es el primero, la ruta del archivo a leer:
+
+```{r}
+heights <- read_csv("data/heights.csv")
+```
+
+Cuando se utiliza esta función, se imprimirá el nombre y tipo de cada una de las columnas.
+
+También se puede definir un archivo csv "en linea" para experimentar con **readr** y hacer ejemplos reproducibles:
+
+```{r}
+read_csv("a,b,c
+1,2,3
+4,5,6")
+```
+
+
+`read_csv` emplea la primera línea como nombres de columna, pero hay casos en que deseamos que esto no ocurra, por ejemplo:
+
+- Cuando existen líneas con metadatos al inicio (utilizar argumento `skip = n` o `comment = "#"`)
+  
+- Cuando los datos no tienen nombres de columnas (utilizar argumento `col_names = FALSE` o `col_names = c("x", "y", "z")` (con los nombres de las columnas))
+
+
+> ! También podemos utilizar el argumento `na = " "` para especificar el valor o valores que se utilizan para representar los valores faltantes en el archivo.
+
+## Comparación con las funciones de R base
+- Son ~10x más rápidas y tienen barra de progreso en procesos más lentos.
+- Producen tibbles, no convierten los vectores de caracteres a factores, no usan nombres de filas ni distorsionan los nombres de columnas. 
+- Son más reproducibles. Las funciones de R base heredan ciertos comportamientos del sistema operativo y de las variables del ambiente, de modo que importar código que funciona bien en tu computadora puede no funcionar en la de otros.
+
+# Interpretar **(o *parsing*, segmentar, analizar)** un vector
+
+funciones `parse_*`
+
+>*parse* (del inglés  analizar, segmentar)
+>
+>- Difícil de traducir al español como verbo, en donde sería como *analizar gramaticalmente*.
+>- En *R para Ciencia de Datos* lo traducen como "segmentar" pero a mi me hace más sentido como analizar o **interpretar**.
+
+Utilizar interpretadores es una cuestión de entender qué está disponible y enfrentar diferentes tipos de input.
+
+Estas funciones toman un vector de caracteres y devuelven un vector más especializado, como un vector lógico, numérico o una fecha:
+
+```{r, results='hold'}
+str(parse_logical(c("TRUE", "FALSE", "NA")))
+str(parse_integer(c("1", "2", "3")))
+str(parse_date(c("2010-01-01", "1979-10-14")))
+
+```
+
+Como todas las funciones del **tidyverse** las funciones `parse_*`tienen una estructura uniforme, el primer argumento es un vector de caracteres y el argumento `na=""` indica el valor que representa de los valores faltantes.
+
+```{r}
+parse_integer(c("1", "231", ".", "456"), na = ".")
+```
+
+Si la interpretación falla, la función deja un mensaje y los "problemas" quedan como NA
+
+```{r, results="hold"}
+x <- parse_integer(c("123", "345", "abc", "123.45"))
+x
+```
+
+## Interpretadores más importantes
+### Números
+- `parse_logical()` (valores lógicos) y `parse_integer()` (números enteros) -> Problemas: pocos o nulos, siempre dan bien.
+
+- `parse_double()`(numérico estricto, solo decimales) y `parse_number()` (numérico flexible, enteros y decimales) -> Problemas: los números no se escriben igual en todo el mundo.
+
+Los problemas más comunes son:
+
+1.- Separadores decimales diferentes (ejemplo: habla hispana es comma mientras que en inglés es punto)
+
+2.- Caracteres de contexto como $ o %
+
+3.- Separadores de miles “1,000,000”. Estos caracteres de agrupación varían alrededor del mundo. 
+
+
+Para solucionar problema 1:
+
+Acá, **readr** incluye el concepto de `locale`, un objeto que especifica las opciones de interpretación que difieren de un lugar a otro. Por ejemplo se puede sobreescribir el separador decimal:
+
+```{r}
+parse_double("1.23")
+parse_double("1,23", locale = locale(decimal_mark = ","))
+
+```
+
+Para soluciona problema 2:
+
+Podemos usar `parse_number()`para extraer números desde caracteres:
+
+```{r, results='hold'}
+parse_number("$100")
+parse_number("20%")
+parse_number("It cost $123.45")
+parse_number("El precio es $123,45", locale=locale(decimal_mark = ","))
+```
+
+Para solucionar problema 3, usamos `parse_number()` + `locale`:
+
+```{r, results='hold'}
+# Utilizado en América
+parse_number("$123,456,789")
+# Utilizado en muchas regiones de Europa
+parse_number("123.456.789", locale = locale(grouping_mark = "."))
+# Utilizado en Suiza
+parse_number("123'456'789", locale = locale(grouping_mark = "'"))
+```
+
+### Caracteres
+- `parse_character()`(caracteres) -> Problemas: la codificación de caracteres (el encoding).
+
+Los sistemas más modernos utilizan UTF-8 que es un encoding internacional, pero los más antiguos siguen utilizando Latin1, Latin2, ASCII u otros.
+
+> Consejo: interiorizar la importancia de UTF-8 en sus vidas.
+
+```{r, results='hold'}
+x1 <- "El Ni\xf1o was particularly bad this year"
+x2 <- "\x82\xb1\x82\xf1\x82\xc9\x82\xbf\x82\xcd"
+x1
+x2
+```
+
+```{r, results='hold'}
+parse_character(x1, locale = locale(encoding = "Latin1"))
+parse_character(x2, locale = locale(encoding = "Shift-JIS"))
+
+```
+
+¿Cómo saber qué codificación es la adecuada? Para eso existe la función  `guess_encoding()` la cual se utiliza en conjunto con `charToRaw()`
+
+```{r}
+guess_encoding(charToRaw(x1))
+```
+
+### Factores
+
+- `parse_factor()` (factores)
+
+R utiliza factores para representar las variables categóricas que tienen un conjunto conocido de valores posibles. Puedes darle a parse_factor() un vector de niveles conocidos (levels) para generar una advertencia cada vez que haya un valor inesperado:
+
+```{r}
+fruta <- c("manzana", "banana")
+parse_factor(c("manzana", "banana", "bananana"), levels = fruta)
+```
+
+### Fechas, fechas+horas y horas
+
+- `parse_datetime()` (fecha+hora), `parse_date()`(fecha) y `parse_time()`(hora) -> Problemas: son los más complicados, ya que hay muchas formas diferentes de escribir las fechas.
+
+#### Fechas y horas
+
+`parse_datetime()` asume una fecha-hora ISO8601. ISO8601 es un estándar internacional en el que los componentes de una fecha están organizados de mayor a menor: año, mes, día, hora, minuto, segundo.
+
+```{r, results="hold"}
+parse_datetime("2010-10-01T2010")
+parse_datetime("20101010")
+
+```
+
+#### Fechas
+`parse_date()` asume un año de cuatro dígitos, un guión - o /, el mes, un guión - o / y luego el día.
+
+```{r, results='hold'}
+parse_date("2010-10-01")
+```
+
+#### Horas
+```{r, results='hold'}
+library(hms)
+parse_time("01:10 am")
+parse_time("20:10:01")
+```
+
+Si tienes otro tipo de formato de fecha u hora, este se puede construir según la siguiente tabla:
+
+```{r, echo=F}
+knitr::kable(data.frame(stringsAsFactors=FALSE,
+       Símbolo = c("%Y", "%y", "%m", "%b", "%B", "%d", "%e", "%H", "%I", "%p",
+                   "%M", "%S", "%OS", "%Z", "%z", "%.", "%*"),
+          Tipo = c("Año", "Año", "Mes", "Mes", "Mes", "Día", "Día", "Hora",
+                   "Hora", "Hora", "Hora", "Hora", "Hora", "Hora", "Hora",
+                   "No-dígitos", "No-dígitos"),
+   Descripción = c("4 dígitos", "2 dígitos 00-69 -> 2000-2069, 70-99 -> 1970-1999", "2 dígitos", 
+                   "nombre abreviado, como “ene”", "nombre completo, “enero”", "2 dígitos",
+                   "espacio opcional destacado", "0-23 horas.", "0-12, debe utilizarse con %p.",
+                   "indicador AM/PM.", "minutos.", "segundos enteros",
+                   "segundos reales", "Zona horaria (como nombre, por ejemplo, America/Chicago)", "como complemento para las UTC, por ejemplo, +0800",
+                   "se salta un caracter no-dígito",
+                   "se salta cualquier número de caracteres no-dígitos"))
+)
+
+```
+
+Por ejemplo:
+
+```{r, results="hold"}
+parse_date("01/02/15", "%m/%d/%y")
+parse_date("01/02/15", "%d/%m/%y")
+parse_date("01/02/15", "%y/%m/%d")
+parse_date("01/02/2015", "%m/%d/%Y")
+parse_date("04-jan-2012", "%d-%b-%Y")
+```
+
+```{r}
+parse_date("04-ene-2012", "%d-%b-%Y", locale = locale("es"))
+parse_date("04-ene.-2012", "%d-%b-%Y", locale = locale("es"))
+```
+
+Funciones útiles:
+
+- `date_names_langs()`
+- `locale("es")`
+
+
+# Interpretar un archivo
+
+**readr** utiliza una heurística para deducir el tipo de cada columna: lee las primeras 1000 filas y utiliza una heurística (moderadamente conservadora) para deducir el formato de las columnas. 
+
+- Se puede simular este proceso con un vector de caracteres utilizando `guess_parser()`, que devuelve la mejor deducción de readr, y `parse_guess()` que utiliza esa deducción para analizar la columna:
+
+
+La heurística prueba cada uno de los siguientes tipos y se detiene cuando encuentra una coincidencia:
+
+- lógico: contiene solo “F”, “T”, “FALSE”, o “TRUE”.
+- entero: contiene solo caracteres numéricos (y ‘-’).
+- doble: contiene solo dobles válidos (incluyendo números como ‘4.5e-5’).
+- número: contiene dobles válidos con la marca de agrupamiento en su interior.
+- hora: coincide con el formato horario por defecto (time_format).
+- fecha: coincide con el formato fecha por defecto (date_format).
+- fecha-hora: cualquier fecha ISO8601.
+
+Si ninguna de esas reglas se aplica, entonces la columna quedará como un vector de cadenas de caracteres.
+
+## Problemas
+
+- Las primeras mil filas podrían ser un caso especial y readr estaría deduciendo un formato que no es suficientemente general. Por ejemplo, podrías tener una columna de dobles que solo contiene enteros en las primeras 1000 filas.
+- La columna podría contener muchos valores faltantes. Si las primeras 1000 filas contienen solo NA, readr deducirá que es un vector de caracteres, mientras que tú probablemente quieras analizarlo como algo más específico.
+
+Veamos problemas que ocurren:
+
+```{r}
+desafio <- read_csv(readr_example("challenge.csv"))
+tail(desafio)
+```
+
+Podemos especificar el tipo de cada columna
+
+```{r}
+desafio <- read_csv(
+  readr_example("challenge.csv"), 
+  col_types = cols(
+    x = col_double(),
+    y = col_date()
+  )
+)
+tail(desafio)
+```
+
+También se puede seleccionar un set más grande que las primeras 1000 filas
+
+```{r}
+desafio2 <- read_csv(readr_example("challenge.csv"), guess_max = 1001)
+```
+
+
+# Escribir a un archivo
+
+**readr** también incluye dos funciones muy útiles para escribir datos de vuelta al disco: `write_csv()` y `write_tsv()`. Ambas funciones incrementan las posibilidades de que el archivo resultante sea leído correctamente al:
+
+- Codificar siempre las cadenas de caracteres en UTF-8.
+- Guardar fechas y fechas-horas en formato ISO8601, por lo que son fácilmente interpretadas en cualquier sitio.
+
+## Pero también tienen problemas
+
+- La información sobre el tipo de dato se pierde al guardar con `write_csv()` y luego volver a leer.
+- Como solución, se puede guardar como RDS con la función `write_rds()` (pero sólo puede ser leida en R con la función base `readRDS()`)
+- También se puede guardar con el paquete **feather** que es compatible con otros sistemas.

@@ -1,0 +1,280 @@
+---
+title: "Ejercicios importacion de datos"
+output:
+  html_document:
+    theme:  journal
+    highlight: zenburn
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_section: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Ejercicios sección 11.2.2
+
+**1. ¿Qué función utilizarías para leer un archivo donde los campos están separados con “|”?**
+
+Respuesta: utilizaría `read_delim()`
+
+```{r}
+## \n sirve para hacer una línea nueva
+read_delim("especie|clase\ngato|mamífero\náguila|ave\nserpiente|reptil", delim = "|")
+```
+
+
+**2. Además de file, skip y comment, ¿qué otros argumentos tienen en común `read_csv()` y `read_tsv()`?**
+
+Respuesta: Todos sus argumentos son iguales, solo cambia el delimitador ya que ambas son casos especiales de la función `read_delim()`. El delimitador para `read_csv()` es coma y para `read_tsv()` es tabulación.
+
+**3. ¿Cuáles son los argumentos más importantes de read_fwf()?**
+
+Los argumentos más importantes son el archivo a leer y los indicadores de posición de columna **col_positions** los cuales pueden ser creados por las funciones:
+
+- `fwf_empty()`
+- `fwf_widths()`
+- `fwf_positions()`
+
+
+**4. Algunas veces las cadenas de caracteres en un archivo csv contienen comas. Para evitar que causen problemas, deben estar rodeadas por comillas, como " o '. Por convención, read_csv() asume que el caracter de separación será "," y si quieres cambiarlo necesitarás usar read_delim() en su lugar.¿Qué argumentos debes especificar para leer el siguiente texto en un data frame?**
+
+"x,y\n1,'a,b'"
+
+Respuesta: Hay que usar el argumento quote. Se puede cambiar por el caracter que se desee, no solamente comillas, pero con comillas simples es lo más utilizado ya que no se confunde con otros símbolos que pueden ser parte del texto. También puede ser útil cambiar el símbolo si es que quisiera que aparezcan las comillas en algún caso muy especial.
+
+```{r}
+
+texto<-"x,y\n1,'a,b'"
+read_csv(texto, quote = "'")
+
+# se puede uzar otro caracter
+
+texto2<-"x,y\n1,*a,b*"
+read_csv(texto2, quote = "*")
+
+# si quisiera que aparecieran las comillas simples (un caso muy particular)
+
+texto3<-"x,y\n1,*'a,b'*"
+read_csv(texto3, quote = "*")
+
+```
+
+
+
+**5. Identifica qué está mal en cada una de los siguientes archivos csv en línea (inline). ¿Qué pasa cuando corres el código?**
+
+**5.1**
+```{r}
+## En este existen más observaciones en las lineas 2 y 3 que encabezados en la primera. 
+## read_csv() genera un resultado, pero omite la columna 3
+
+read_csv("a,b\n1,2,3\n4,5,6")
+```
+**5.2**
+```{r}
+## En este la fila 3 tiene  4 elementos mientras que 1 y 2 sólo tienen 3 y 2
+## read_csv() genera un resultado pero omite la columna 4. 
+## También genera un NA en la fila 2 
+
+read_csv("a,b,c\n1,2\n1,2,3,4")
+```
+**5.3**
+```{r}
+
+## En este existe sólo una obervación en la fila 2 para dos encabezados de 
+## columna en la fila 1. 
+## Asume que el 1 corresponde a la columna "a" y genera un NA en "b" 
+
+read_csv("a,b\n\"1")
+```
+**5.4**
+```{r}
+
+## Acá combina números enteros y caracteres en una misma columna. 
+## read_csv() genera la tabla, pero deja ambas columnas como caracteres
+## lo que se conoce como coerción,
+## (https://bookdown.org/jboscomendoza/r-principiantes4/coercion.html)
+
+read_csv("a,b\n1,2\na,b")
+```
+**5.5**
+```{r}
+
+## Acá el separador de listas no es una coma, es ";"
+## por lo que debe leerse con la función read_csv2() o read_delim(,delim = ";")
+## read_csv() genera un tibble de 1x1
+
+read_csv("a;b\n1;3")
+read_csv2("a;b\n1;3")
+read_delim("a;b\n1;3", delim=";")
+```
+
+## Ejercicios sección 11.3.5
+**1. ¿Cuáles son los argumentos más importantes para locale()?**
+
+Respuesta:  EL argumento principal es el primero, `date_names` que puede ser tanto un vector con los nombres de los días y meses, como el código del lenguaje que queremos utilizar el cual se obtiene desde la función `date_names_langs()`y más detalles con `date_names_lang("es")`. También, puede ser un objeto propio creado con `date_names()`
+
+
+**2.1 ¿Qué pasa si intentas establecer `decimal_mark` y `grouping_mark` como el mismo caracter?  **
+
+Respuesta 1: `decimal_mark` y `grouping_mark` DEBEN ser diferentes
+
+```{r, error=T}
+locale(decimal_mark = ".", grouping_mark = ".")
+```
+**2.2 ¿Qué pasa con el valor por defecto de `grouping_mark` cuando estableces `decimal_mark` como `,`?**
+Respuesta 2: Cuando `decimal_mark = ","`, `grouping_mark` se cambia automáticamente a punto. Esto se puede ver en el formato de número o accediendo al grouping_mark almacenado por locale.
+
+```{r}
+locale(decimal_mark = ",")
+names(locale(decimal_mark = ","))
+locale(decimal_mark = ",")$grouping_mark
+```
+
+**2.3 ¿Qué pasa con el valor por defecto de `decimal_mark` cuando estableces `grouping_mark` como `.`?**
+Respuesta 3: Igual que en el caso anterior, se cambia automáticamente `decimal_mark` a una coma.
+```{r}
+locale(grouping_mark = ".")
+locale(grouping_mark = ".")$decimal_mark
+```
+
+
+**3. No discutimos las opciones de `date_format` y `time_format` para locale(). ¿Qué hacen? Construye un ejemplo que muestre cuándo podrían ser útiles.**
+
+Respuesta: Estas opciones establecen el formato de fecha y hora a utilizar. Por defecto tienen el valor `date_format = "%AD"`(automatic date) que reconoce fechas con el formato Y-m-d or Y/m/d mientras que `time_format = "%AT"`(automatic time) reconoce horas con el formato H:M.
+
+Es más probable que tengamos un formato diferente de fechas que de horas ya que las horas se escriben relativamente de forma estándar el todo el mundo, 0:24 o am/pm, no así las fechas. Veamos un ejemplo de cómo cambiar el formato.
+
+```{r}
+fecha_en <- "24 January 1948"
+parse_date(fecha_en, locale=locale(date_format = "%d %B %Y"))
+
+```
+
+
+**4. Si vives fuera de EEUU, crea un nuevo objeto locale que contenga las opciones para los tipos de archivo que lees más comúnmente.**
+Respuesta: podemos volver al ejemplo anterior, pero en español
+```{r}
+## podemos utilizar español agregando date_names="es"
+fecha_es <- "24 Enero 1948"
+parse_date(fecha_es, locale=locale(date_names = "es", date_format = "%d %B %Y"))
+
+```
+
+
+
+**5. ¿Cuál es la diferencia entre `read_csv()` y `read_csv2()`?**
+
+Respuesta: sólo el separador de listas o delimitador, en `read_csv()` es una coma y en `read_csv2()` es punto y coma.
+
+**6. ¿Cuáles son las codificaciones más comunes empleadas en Europa? ¿Cuáles son las codificaciones más comunes utilizadas en Asia? ¿Y en América Latina? Googlea un poco para descubrirlo.**
+
+Respuesta:
+
+En el mundo, el más usado en la actualidad es UTF8
+
+![https://googleblog.blogspot.com/2010/01/unicode-nearing-50-of-web.html](https://3.bp.blogspot.com/_7ZYqYi4xigk/S2Hcx0fITQI/AAAAAAAAFmM/ifZX2Wmv40A/s1600/unicode.png)
+
+
+En Europa: ISO-8859 encoding de 8 bits, es el más ocupado en los lenguajes europeos [Más info](https://en.wikipedia.org/wiki/ISO/IEC_8859)
+
+En Asia: chino (GB2312), koreano (EUC-KR), japonés (JIS, Shift-JIS) [Más info](https://unicodebook.readthedocs.io/encodings.html)
+
+En América Latina: ISO-8859-1 también conocido como Latin1, también puede ser utilizado para Alemán, Italiano y Francés [Más info](http://www.steves-internet-guide.com/guide-data-character-encoding/)
+
+
+**7. Genera el formato correcto de texto para interpretar cada una de las siguientes fechas y horas:**
+
+Para hacer extos ejercicios hay que tener a mano la siguiente tabla:
+```{r, echo=F}
+knitr::kable(data.frame(stringsAsFactors=FALSE,
+       Símbolo = c("%Y", "%y", "%m", "%b", "%B", "%d", "%e", "%H", "%I", "%p",
+                   "%M", "%S", "%OS", "%Z", "%z", "%.", "%*"),
+          Tipo = c("Año", "Año", "Mes", "Mes", "Mes", "Día", "Día", "Hora",
+                   "Hora", "Hora", "Hora", "Hora", "Hora", "Hora", "Hora",
+                   "No-dígitos", "No-dígitos"),
+   Descripción = c("4 dígitos", "2 dígitos 00-69 -> 2000-2069, 70-99 -> 1970-1999", "2 dígitos", 
+                   "nombre abreviado, como “ene”", "nombre completo, “enero”", "2 dígitos",
+                   "espacio opcional destacado", "0-23 horas.", "0-12, debe utilizarse con %p.",
+                   "indicador AM/PM.", "minutos.", "segundos enteros",
+                   "segundos reales", "Zona horaria (como nombre, por ejemplo, America/Chicago)", "como complemento para las UTC, por ejemplo, +0800",
+                   "se salta un caracter no-dígito",
+                   "se salta cualquier número de caracteres no-dígitos"))
+)
+
+```
+
+**7.1**
+
+```{r}
+d1 <- "Enero 1, 2010"
+parse_date(d1, format = "%B %d, %Y", locale=locale("es"))
+```
+
+
+**7.2**
+Esta parece más fácil de lo que es. En la traducción al español queda como "Ene", pero si vemos `date_names_lang("es")` nos damos cuenta que la abreviatura debe tener un punto al final. Puedo ponerle un punto, pero decido hacerlo de la forma larga para mostrar como se haría con un objeto personalizado con `date_names()`
+```{r}
+d2 <- "2015-Ene-07"
+
+## Hago un vector con nuevas abreviaturas
+ab <- c("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+## Copio el objeto con los valores originales del español, me va a servir para copiar los que no deseo cambiar
+es <- date_names_lang("es")
+## Hago el objeto con las nuevas abreviaturas y los demás valores iguales
+es2 <- date_names(mon = es$mon, mon_ab = ab, day = es$day, day_ab = es$day_ab, am_pm = es$am_pm)
+
+## Lo pongo en práctica
+parse_date(d2, format = "%Y-%b-%d", locale=locale(date_names = es2))
+```
+
+**7.3**
+```{r}
+## Esta funciona tanto en español como inglés
+d3 <- "06-Jun-2017"
+
+parse_date(d3, format = "%d-%b-%Y")
+
+```
+**7.4**
+```{r}
+# Como acá se usa el nombre completo en español, puedo usar "es"
+# Para saltarse caracteres se usa %.
+
+d4 <- c("Agosto 19 (2015)", "Julio 1 (2015)")
+
+parse_date(d4, format="%B %d %.%Y%.", locale=locale("es"))
+
+
+```
+
+**7.5**
+```{r}
+d5 <- "12/30/14" # Dec 30, 2014
+
+parse_date(d5, format="%m/%d/%y")
+
+```
+
+**7.6**
+```{r}
+t1 <- "1705"
+parse_time(t1, format = "%H%M")
+
+```
+
+**7.7**
+```{r}
+t2 <- "11:15:10.12 PM"
+
+parse_time(t2, format = "%H:%M:%OS %p")
+```
+
+
+
+
+
