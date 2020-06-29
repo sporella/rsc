@@ -354,5 +354,3 @@ with_tz(x4, tzone = "UTC")
 ## Cuando se han etiquetado con un uso horario incorrecto:
 force_tz(x4, tzone = "Australia/Lord_Howe")
 ```
-
-
